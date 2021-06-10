@@ -37,9 +37,9 @@ class MainScreen extends StatelessWidget {
     return ValueListenableBuilder(
       valueListenable: Hive.box(SETTINGS_BOX).listenable(),
       builder: (context, box, child) =>
-      box.get('welcome_shown', defaultValue: false)
-          ? HomePage()
-          : WelcomePage(),
+          box.get('welcome_shown', defaultValue: false)
+              ? HomePage()
+              : WelcomePage(),
     );
   }
 }
@@ -77,35 +77,35 @@ class HomePage extends StatelessWidget {
       body: FutureBuilder(
           future: ApiService().getPosts(),
           builder: (context, snapshot) {
-            if(!snapshot.hasData) return CircularProgressIndicator();
+            if (!snapshot.hasData) return CircularProgressIndicator();
             final List posts = snapshot.data;
             return ListView(
               padding: const EdgeInsets.all(16.0),
               children: <Widget>[
                 Text("This is a home page"),
-                ...posts.map((p)=>ListTile(
-                  title: Text(p['title']),
-                )),
+                SizedBox(height: 20),
+                ...posts.map((p) => ListTile(
+                      title: Text(p['title']),
+                      leading: Text(p['userId'].toString()),
+                    )),
                 ElevatedButton(
                   onPressed: () {
-                    Hive.box(SETTINGS_BOX).put('welcome_shown',false);
+                    Hive.box(SETTINGS_BOX).put('welcome_shown', false);
                   },
                   child: Text("Clear"),
                 )
               ],
             );
-          }
-      ),
+          }),
     );
   }
 }
 
-
 class ApiService {
   Future getPosts() async {
-    final posts = Hive.box(API_BOX).get('posts',defaultValue: []);
-    if(posts.isNotEmpty) return posts;
-    final Uri url = Uri.parse("https://jsonplaceholder.typicode.com/posts");
+    final posts = Hive.box(API_BOX).get('posts', defaultValue: []);
+    if (posts.isNotEmpty) return posts;
+    final Uri url = Uri.parse('https://jsonplaceholder.typicode.com/posts');
     final http.Response res = await http.get(url);
     final resjson = jsonDecode(res.body);
     Hive.box(API_BOX).put("posts", resjson);
