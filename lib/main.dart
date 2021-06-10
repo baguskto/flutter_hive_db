@@ -1,51 +1,114 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:http/http.dart' as http;
+
+const String SETTINGS_BOX = "settings";
+const String API_BOX = "api_data";
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-
-  Hive.registerAdapter(PersonAdapter());
-  var persons = await Hive.openBox<Person>('personsWithLists');
-  persons.clear();
-
-  var mario = Person('Mario');
-  var luna = Person('Luna');
-  var alex = Person('Alex');
-  persons.addAll([mario, luna, alex]);
-
-  mario.friends = HiveList(persons); // Create a HiveList
-  mario.friends.addAll([luna, alex]); // Update Mario's friends
-  print(mario.friends);
-
-  luna.delete(); // Remove Luna from Hive
-  print(mario.friends); // HiveList updates automatically
+  await Hive.openBox(SETTINGS_BOX);
+  await Hive.openBox(API_BOX);
+  runApp(MyApp());
 }
 
-@HiveType()
-class Person extends HiveObject {
-  @HiveField(0)
-  String name;
-
-  @HiveField(1)
-  HiveList friends;
-
-  Person(this.name);
-
-  String toString() => name; // For print()
-}
-
-class PersonAdapter extends TypeAdapter<Person> {
+class MyApp extends StatelessWidget {
   @override
-  final typeId = 0;
-
-  @override
-  Person read(BinaryReader reader) {
-    return Person(reader.read())..friends = reader.read();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Material App',
+      home: MainScreen(),
+    );
   }
+}
+
+class MainScreen extends StatelessWidget {
+  const MainScreen({
+    Key key,
+  }) : super(key: key);
 
   @override
-  void write(BinaryWriter writer, Person obj) {
-    writer.write(obj.name);
-    writer.write(obj.friends);
+  Widget build(BuildContext context) {
+    print(Hive.box(SETTINGS_BOX).get("welcome_shown"));
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(SETTINGS_BOX).listenable(),
+      builder: (context, box, child) =>
+      box.get('welcome_shown', defaultValue: false)
+          ? HomePage()
+          : WelcomePage(),
+    );
+  }
+}
+
+class WelcomePage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("Welcome Page"),
+            ElevatedButton(
+              onPressed: () async {
+                var box = Hive.box(SETTINGS_BOX);
+                box.put("welcome_shown", true);
+              },
+              child: Text("Get Started"),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Home page'),
+      ),
+      body: FutureBuilder(
+          future: ApiService().getPosts(),
+          builder: (context, snapshot) {
+            if(!snapshot.hasData) return CircularProgressIndicator();
+            final List posts = snapshot.data;
+            return ListView(
+              padding: const EdgeInsets.all(16.0),
+              children: <Widget>[
+                Text("This is a home page"),
+                ...posts.map((p)=>ListTile(
+                  title: Text(p['title']),
+                )),
+                ElevatedButton(
+                  onPressed: () {
+                    Hive.box(SETTINGS_BOX).put('welcome_shown',false);
+                  },
+                  child: Text("Clear"),
+                )
+              ],
+            );
+          }
+      ),
+    );
+  }
+}
+
+
+class ApiService {
+  Future getPosts() async {
+    final posts = Hive.box(API_BOX).get('posts',defaultValue: []);
+    if(posts.isNotEmpty) return posts;
+    final Uri url = Uri.parse("https://jsonplaceholder.typicode.com/posts");
+    final http.Response res = await http.get(url);
+    final resjson = jsonDecode(res.body);
+    Hive.box(API_BOX).put("posts", resjson);
+    return resjson;
   }
 }
